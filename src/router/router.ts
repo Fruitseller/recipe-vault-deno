@@ -60,6 +60,16 @@ export class Router {
     return this;
   };
 
+  patch = (path: string, handler: RequestHandler) => {
+    this.addRoute("PATCH", path, handler);
+    return this;
+  };
+
+  options = (path: string, handler: RequestHandler) => {
+    this.addRoute("OPTIONS", path, handler);
+    return this;
+  };
+
   handle = async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
     const pathToMatch = createRoutePath(url.pathname);
