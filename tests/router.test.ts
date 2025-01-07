@@ -1,32 +1,27 @@
-// tests/router.test.ts
-import { assertEquals, assertThrows } from "../deps.ts";
-import { Router, RoutePath } from "../src/router/router.ts";
+import { assertEquals, assertExists, assertThrows } from "../deps.ts";
+import { Router } from "../src/router/router.ts";
 
-// Path validation tests ensure our router properly handles URL paths
 Deno.test("Router - Path Validation", async (t) => {
   await t.step("should accept paths that start with /", () => {
     const router = new Router();
-    // This test verifies that valid paths work without throwing errors
     router.get("/test", async () => new Response());
   });
 
   await t.step("should throw error for paths without /", () => {
     const router = new Router();
     assertThrows(
-        () => router.get("test", async () => new Response()),
-        Error,
-        "Route path must start with '/'"
+      () => router.get("test", async () => new Response()),
+      Error,
+      "Route path must start with '/'",
     );
   });
 });
 
-// HTTP method tests verify our router handles different request types correctly
 Deno.test("Router - HTTP Methods", async (t) => {
   await t.step("should accept all valid HTTP methods", () => {
     const router = new Router();
     const dummyHandler = async () => new Response();
 
-    // Testing each supported HTTP method ensures complete method coverage
     router.get("/test", dummyHandler);
     router.post("/test", dummyHandler);
     router.put("/test", dummyHandler);
@@ -36,7 +31,6 @@ Deno.test("Router - HTTP Methods", async (t) => {
   });
 });
 
-// Request handling tests check the core routing functionality
 Deno.test("Router - Request Handling", async (t) => {
   await t.step("should return 404 for non-existent routes", async () => {
     const router = new Router();
@@ -54,7 +48,7 @@ Deno.test("Router - Request Handling", async (t) => {
 
     router.get("/test", async () => {
       return new Response(JSON.stringify({ message: testMessage }), {
-        headers: { "content-type": "application/json" }
+        headers: { "content-type": "application/json" },
       });
     });
 
@@ -69,7 +63,7 @@ Deno.test("Router - Request Handling", async (t) => {
   await t.step("should return 400 for invalid HTTP methods", async () => {
     const router = new Router();
     const request = new Request("http://localhost/test", {
-      method: "INVALID"
+      method: "INVALID",
     });
 
     const response = await router.handle(request);
@@ -81,7 +75,6 @@ Deno.test("Router - Request Handling", async (t) => {
   });
 });
 
-// Error handling tests ensure our router gracefully handles errors
 Deno.test("Router - Error Handling", async (t) => {
   await t.step("should return 500 when handler throws error", async () => {
     const router = new Router();
@@ -98,5 +91,39 @@ Deno.test("Router - Error Handling", async (t) => {
     const body = await response.json();
     assertEquals(body.error, "Internal Server Error");
     assertEquals(body.message, errorMessage);
+  });
+});
+
+Deno.test("Router - Response Headers", async (t) => {
+  await t.step(
+    "should always include content-type for JSON responses",
+    async () => {
+      const router = new Router();
+      const request = new Request("http://localhost/nonexistent");
+      const response = await router.handle(request);
+
+      assertEquals(response.headers.get("content-type"), "application/json");
+
+      const body = await response.json();
+      assertExists(body.error);
+    },
+  );
+
+  await t.step("should preserve custom headers from handlers", async () => {
+    const router = new Router();
+    const customHeaderName = "X-Custom-Header";
+    const customHeaderValue = "test-value";
+
+    router.get("/test", async () => {
+      return new Response(JSON.stringify({ message: "test" }), {
+        headers: {
+          "content-type": "application/json",
+          [customHeaderName]: customHeaderValue,
+        },
+      });
+    });
+
+    const response = await router.handle(new Request("http://localhost/test"));
+    assertEquals(response.headers.get(customHeaderName), customHeaderValue);
   });
 });
