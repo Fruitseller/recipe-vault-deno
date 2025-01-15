@@ -1,5 +1,12 @@
 import { assertEquals, assertExists, assertThrows } from "../deps.ts";
-import { Router } from "../src/router/router.ts";
+import { RouteParams, Router } from "../src/router/router.ts";
+
+const createTestResponse = (status: number, params: unknown) => {
+  return new Response(JSON.stringify(params), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+};
 
 Deno.test("Router - Path Validation", async (t) => {
   await t.step("should accept paths that start with /", () => {
@@ -126,4 +133,96 @@ Deno.test("Router - Response Headers", async (t) => {
     const response = await router.handle(new Request("http://localhost/test"));
     assertEquals(response.headers.get(customHeaderName), customHeaderValue);
   });
+});
+
+Deno.test("Router - Dynamic Parameters", async (t) => {
+  await t.step("should extract single parameter from URL", async () => {
+    const router = new Router();
+    let capturedParams: RouteParams = {};
+
+    router.get("/users/:id", async (_req, params) => {
+      capturedParams = params;
+      return createTestResponse(200, params);
+    });
+
+    await router.handle(new Request("http://localhost/users/123"));
+    assertEquals(capturedParams.id, "123");
+  });
+
+  await t.step("should handle multiple parameters in route", async () => {
+    const router = new Router();
+    let capturedParams: RouteParams = {};
+
+    router.get("/users/:userId/posts/:postId", async (_req, params) => {
+      capturedParams = params;
+      return createTestResponse(200, params);
+    });
+
+    await router.handle(new Request("http://localhost/users/123/posts/456"));
+    assertEquals(capturedParams.userId, "123");
+    assertEquals(capturedParams.postId, "456");
+  });
+
+  await t.step(
+    "should correctly match mixed static and dynamic segments",
+    async () => {
+      const router = new Router();
+      let capturedParams: RouteParams = {};
+
+      router.get("/users/:id/profile", async (_req, params) => {
+        capturedParams = params;
+        return createTestResponse(200, params);
+      });
+
+      await router.handle(new Request("http://localhost/users/123/profile"));
+      assertEquals(capturedParams.id, "123");
+
+      const wrongResponse = await router.handle(
+        new Request("http://localhost/users/123/settings"),
+      );
+      assertEquals(wrongResponse.status, 404);
+    },
+  );
+});
+
+Deno.test("Router - Parameter Error Cases", async (t) => {
+  await t.step("should not match if segment count differs", async () => {
+    const router = new Router();
+
+    router.get("/users/:id", async (_req, params) => {
+      return createTestResponse(200, params);
+    });
+
+    const response = await router.handle(
+      new Request("http://localhost/users/123/extra"),
+    );
+    assertEquals(response.status, 404);
+  });
+
+  await t.step(
+    "should handle parameters across different HTTP methods",
+    async () => {
+      const router = new Router();
+      const responses: Record<string, RouteParams> = {};
+
+      router.get("/users/:id", async (_reg, params) => {
+        responses["GET"] = params;
+        return createTestResponse(200, params);
+      });
+
+      router.post("/users/:id", async (_reg, params) => {
+        responses["POST"] = params;
+        return createTestResponse(201, params);
+      });
+
+      await router.handle(new Request("http://localhost/users/123"));
+      assertEquals(responses["GET"].id, "123");
+
+      const postResponse = await router.handle(
+        new Request("http://localhost/users/456", { method: "POST" }),
+      );
+      assertEquals(responses["POST"].id, "456");
+      assertEquals(postResponse.status, 201);
+    },
+  );
 });
