@@ -1,5 +1,5 @@
-import { assertEquals, assertExists, assertThrows } from "../deps.ts";
-import { RouteParams, Router } from "../src/router/router.ts";
+import { assertEquals, assertExists, assertThrows } from "../../deps.ts";
+import { RouteParams, Router } from "../../src/router/router.ts";
 
 const createTestResponse = (status: number, params: unknown) => {
   return new Response(JSON.stringify(params), {
