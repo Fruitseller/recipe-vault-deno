@@ -3,7 +3,7 @@ import {
   ValidationError,
   ValidationErrorType,
 } from "../../src/domain/validation/errors.ts";
-import {assertEquals} from "../../deps.ts";
+import { assertEquals } from "../../deps.ts";
 
 Deno.test("requiredString validator", async (t) => {
   await t.step("handles required field violations", () => {

@@ -1,3 +1,7 @@
+export type Middleware = (
+  request: Request,
+) => Promise<Response | null>;
+
 export type RouteParams = Record<string, string>;
 
 export type RequestHandler = (
@@ -41,6 +45,12 @@ export interface Route {
 
 export class Router {
   private routes: Route[] = [];
+  private middlewares: Middleware[] = [];
+
+  use(middleware: Middleware) {
+    this.middlewares.push(middleware);
+    return this;
+  }
 
   private parseSegments = (path: string): RouteSegment[] => {
     return path.split("/").filter(Boolean).map((segment) => ({
@@ -159,6 +169,13 @@ export class Router {
 
   handle = async (request: Request): Promise<Response> => {
     try {
+      for (const middleware of this.middlewares) {
+        const response = await middleware(request);
+        if (response) {
+          return response;
+        }
+      }
+
       const url = new URL(request.url);
       const path = createRoutePath(url.pathname);
       const method = request.method;
@@ -182,11 +199,25 @@ export class Router {
         );
       }
 
-      return await this.executeHandler(
+      const response = await this.executeHandler(
         match.route.handler,
         request,
         match.params,
       );
+
+      const headers = new Headers(response.headers);
+
+      const origin = request.headers.get("origin");
+      if (origin) {
+        headers.set("Access-Control-Allow-Origin", origin);
+        headers.set("Vary", "Origin");
+      }
+
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
     } catch (error: unknown) {
       const message = error instanceof Error
         ? error.message
